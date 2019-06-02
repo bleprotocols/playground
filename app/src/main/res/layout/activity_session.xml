@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.v4.widget.NestedScrollView
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+
+    <android.support.constraint.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="16dp">
+
+        <Button
+            android:id="@+id/connectButton"
+            android:layout_width="0dp"
+            android:layout_height="36dp"
+            android:layout_weight="0.05"
+            android:gravity="center"
+            android:onClick="stopClick"
+            android:text="Disconnect"
+            app:layout_constraintBottom_toTopOf="@+id/textViewSession"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_chainStyle="spread_inside" />
+
+        <EditText
+            android:id="@+id/textViewSession"
+            android:layout_width="0dp"
+            android:layout_height="128dp"
+            android:textSize="14sp"
+            app:layout_constraintBottom_toTopOf="@+id/editText"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/connectButton"
+
+            android:fontFamily="monospace"
+            android:textColor="@android:color/holo_green_light"
+            android:inputType="none"
+            android:linksClickable="true"
+            android:clickable="true"
+            android:focusable="true"
+            android:focusableInTouchMode="true"
+
+            />
+
+        <EditText
+            android:id="@+id/editText"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:autoText="false"
+            android:clickable="true"
+            android:cursorVisible="true"
+            android:editable="false"
+            android:ems="10"
+            android:enabled="false"
+            android:focusable="auto"
+            android:focusableInTouchMode="true"
+            android:fontFamily="monospace"
+            android:inputType="textMultiLine"
+            android:isScrollContainer="true"
+            android:linksClickable="true"
+            android:scrollbarAlwaysDrawHorizontalTrack="false"
+            android:scrollbarAlwaysDrawVerticalTrack="false"
+            android:scrollbars="vertical"
+            android:singleLine="false"
+            android:textColor="@android:color/holo_green_light"
+            android:textIsSelectable="true"
+            android:textSize="8sp"
+            android:textStyle="normal"
+
+            android:typeface="monospace"
+            android:visibility="visible"
+
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintHeight_default="spread"
+            app:layout_constraintHeight_min="100dp"
+            app:layout_constraintLeft_toLeftOf="parent"
+            app:layout_constraintRight_toRightOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/connectButton"
+
+            />
+
+    </android.support.constraint.ConstraintLayout>
+</android.support.v4.widget.NestedScrollView>
