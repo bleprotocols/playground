@@ -17,7 +17,7 @@ if (rand(0, 100) > 90) {
 }
 
 $session_file  = session_filename($_GET['session']);
-$session_vars  = explode(",", read_session_file($session_file,"Basic1,Hard,10,2,0,0,0,0,0,0,0,0"));
+$session_vars  = explode(",", read_session_file($session_file,"Basic1,Hard,10,2,0,10,10,0,0,0,0,0"));
 $program       = get_array_postparam('program', PROGRAMS, $session_vars[0]);
 $feel          = get_array_postparam('feel', PROGRAMS, $session_vars[1]);
 $ontime        = get_numeric_postparam('ontime', $session_vars[2]);

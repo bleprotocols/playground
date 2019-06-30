@@ -1,8 +1,10 @@
 package com.devices.lovesense;
 
+import android.bluetooth.BluetoothDevice;
+
 import com.ble.GattDeviceConnection;
 
-public class LovesenseConnection extends GattDeviceConnection {
+public abstract class LovesenseConnection extends GattDeviceConnection {
 
     public LovesenseConnection() {
         super();
@@ -15,11 +17,6 @@ public class LovesenseConnection extends GattDeviceConnection {
     @Override
     public void onDisconnect() {
         this.connect();
-    }
-
-    @Override
-    protected void onConnect() {
-
     }
 
 
@@ -47,4 +44,8 @@ public class LovesenseConnection extends GattDeviceConnection {
         return response;
     }
 
+    @Override
+    public boolean isDevice(BluetoothDevice result) {
+        return result != null && result.getName().startsWith("LVS-");
+    }
 }

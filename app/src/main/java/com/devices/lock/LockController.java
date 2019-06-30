@@ -2,9 +2,17 @@ package com.devices.lock;
 
 import android.bluetooth.BluetoothDevice;
 
+import com.bluetooth.Controller;
+import com.rpc.RpcFunction;
+import com.rpc.RpcIntentHandler;
+
 import java.nio.ByteBuffer;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 import static com.common.Common.hexStringToByteArray;
+import static com.common.Common.wrap;
 import static com.devices.lock.LockConstants.COMMAND_AUTH_PWD;
 import static com.devices.lock.LockConstants.COMMAND_ENERGY;
 import static com.devices.lock.LockConstants.COMMAND_KEY_OPERATE_PWD;
@@ -15,7 +23,11 @@ import static com.devices.lock.LockConstants.COMMAND_STATUS;
 import static com.devices.lock.LockConstants.OPEN_BLELOCK;
 
 
-public class LockController extends LockConnection implements com.bluetooth.BluetoothDevice {
+public class LockController extends LockConnection implements Controller {
+    boolean locked = false;
+    private RpcIntentHandler intentHandler = new RpcIntentHandler<>(LockController.class, this);
+    private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
     public static byte[] keyStrToBytes(String pwd) {
         ByteBuffer byteBuffer = ByteBuffer.allocate(6);
         for (int i = 0; i <= 5; i++) {
@@ -28,11 +40,6 @@ public class LockController extends LockConnection implements com.bluetooth.Blue
         return byteBuffer.array();
     }
 
-
-    @Override
-    protected void onConnect() {
-
-    }
 
     @Override
     public void onDisconnect() {
@@ -63,7 +70,6 @@ public class LockController extends LockConnection implements com.bluetooth.Blue
         return this.recvPacket(COMMAND_STATUS);
     }
 
-
     public void setAuthPassword(int password) {
         this.sendPacket(COMMAND_SET_PASSWORD, hexStringToByteArray(String.format("%06x", password)));
     }
@@ -88,4 +94,40 @@ public class LockController extends LockConnection implements com.bluetooth.Blue
     public boolean isDevice(BluetoothDevice result) {
         return result.getName().equals("smart lock");
     }
+
+
+    @Override
+    public String getTypeName() {
+        return "SmartLock";
+    }
+
+    @Override
+    protected synchronized void onConnect() {
+        if (!locked) {
+            //you have to authenticate with a password before any of the other messages can be sent.
+            if (this.authPassword(0)) {
+                this.getLockEnergy();
+                this.operateLock();
+            }
+        }
+    }
+
+
+    @Override
+    public void startControlling() {
+        intentHandler.registerHandler(getContext(), "lock_command");
+        scheduler.scheduleAtFixedRate(wrap(()->this.connect()),1,1, TimeUnit.SECONDS);
+    }
+
+    @Override
+    public void stopControlling() {
+        intentHandler.unregisterHandler(getContext());
+        this.close();
+    }
+
+    @RpcFunction
+    public synchronized void setLocked(boolean locked) {
+        this.locked = locked;
+    }
+
 }

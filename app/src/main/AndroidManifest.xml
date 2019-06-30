@@ -18,6 +18,11 @@
         </activity>
 
         <activity android:name="com.gui.SessionActivity" android:parentActivityName="com.gui.MainActivity"  android:alwaysRetainTaskState="true"  android:configChanges="orientation|screenSize|keyboardHidden" />
+        <activity android:name="com.gui.ConfigureDevicesActivity" android:parentActivityName="com.gui.MainActivity"  android:alwaysRetainTaskState="true"  android:configChanges="orientation|screenSize|keyboardHidden" />
+        <activity android:name="com.gui.ConfigureParametersActivity" android:parentActivityName="com.gui.MainActivity"  android:alwaysRetainTaskState="true"  android:configChanges="orientation|screenSize|keyboardHidden" />
+        <activity android:name="com.gui.MeditationActivity" android:parentActivityName="com.gui.MeditationActivity"  android:alwaysRetainTaskState="true"  android:configChanges="orientation|screenSize|keyboardHidden" />
+
+
         <service android:name="com.session.SessionService"  />
     </application>
 
@@ -27,5 +32,7 @@
     <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.INTERNET" />
-
+    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
 </manifest>

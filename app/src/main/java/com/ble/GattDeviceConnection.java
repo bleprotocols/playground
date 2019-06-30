@@ -34,11 +34,14 @@ import static com.common.CommonConstants.*;
  * The downside is that it's not *that* flexible supporting only one TX/RX channel.
  * For most devices this however is enough.
  */
-public abstract class GattDeviceConnection extends BluetoothGattCallback {
+public abstract class GattDeviceConnection extends BluetoothGattCallback implements com.bluetooth.BluetoothDevice {
     //Variables that are set directly via getters/setters
     private Context context;
     private String deviceAddress;
     private PrintStream logger;
+
+    private boolean autoReconnect;
+
     private UUID txUUID;
     private UUID rxUUID;
     private UUID serviceUIID;
@@ -86,21 +89,22 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback {
 
     protected abstract void onDisconnect();
 
+
     //Getters/setters go here:
-    public GattDeviceConnection setLogger(PrintStream logger) {
+    @Override
+    public void setLogger(PrintStream logger) {
         this.logger = logger;
-        return this;
     }
 
-    public GattDeviceConnection setContext(Context context) {
+    @Override
+    public void setContext(Context context) {
         bluetoothManager = (BluetoothManager) context.getSystemService(Context.BLUETOOTH_SERVICE);
         this.context = context;
-        return this;
     }
 
-    public GattDeviceConnection setaddress(String deviceAddress) {
+    @Override
+    public void setaddress(String deviceAddress) {
         this.deviceAddress = deviceAddress;
-        return this;
     }
 
     public GattDeviceConnection setTxUUID(UUID uuid) {
@@ -128,6 +132,10 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback {
         return this;
     }
 
+    public GattDeviceConnection setAutoReconnect(boolean autoReconnect) {
+        this.autoReconnect = autoReconnect;
+        return this;
+    }
 
     public GattDeviceConnection setDiscoverServicesTimeout(long discoverServicesTimeout) {
         this.discoverServicesTimeout = discoverServicesTimeout;
@@ -139,6 +147,9 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback {
         return logger;
     }
 
+    protected Context getContext() {
+        return this.context;
+    }
 
     //Socket lifecycle operations. First we construct it, then we connect.
     //On first connection we discover the services, which we then subscribe to.
@@ -149,6 +160,7 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback {
         context = null;
         bleGatt = null;
         device = null;
+        autoReconnect = true;
     }
 
     protected synchronized boolean connect() {
@@ -202,7 +214,7 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback {
         }
 
         if (null == bleGatt) {
-            bleGatt = device.connectGatt(context, true, this);
+            bleGatt = device.connectGatt(context, autoReconnect, this);
 
             if (null == bleGatt) {
                 getLogger().println("Can't connect to " + device.getName());
@@ -228,7 +240,7 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback {
         }
     }
 
-    private boolean setSubscribeToRxChannel() {
+    protected boolean setSubscribeToRxChannel() {
         if (!connect()) {
             return false;
         }
@@ -252,7 +264,14 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback {
 
         if (null == gattService) {
             actionsOnEvents.submit(this::doDiscoverServices);
-            return false;
+            if (0 != 2) {
+                return false;
+            }
+
+            gattService = bleGatt.getService(serviceUIID);
+            if (null == gattService) {
+                return false;
+            }
         }
 
         BluetoothGattCharacteristic channel = gattService.getCharacteristic(rxUUID);
@@ -269,7 +288,7 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback {
 
         if (null == descriptor) {
             isSubscribingToRXChannel.set(false);
-            return false;
+            return true;
         }
 
         descriptor.setValue(BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE);

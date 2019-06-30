@@ -15,7 +15,8 @@ public abstract class LockConnection extends GattDeviceConnection {
                 .setTxUUID(TX_CHAR_UUID)
                 .setRxUUID(RX_CHAR_UUID)
                 .setConnectionTimeout(300)
-                .setTxRxTimeout(500);
+                .setTxRxTimeout(500)
+                .setAutoReconnect(false);
     }
 
 
@@ -47,7 +48,7 @@ public abstract class LockConnection extends GattDeviceConnection {
 
 
         if (header.length != 2 || header[0] != RESPOND_ID) {
-            getLogger().println("LockConnection::recvPacket("+id+"): Invalid lock response");
+            getLogger().println("LockConnection::recvPacket(" + id + "): Invalid lock response");
 
             return false;
         }
@@ -57,26 +58,26 @@ public abstract class LockConnection extends GattDeviceConnection {
                 payload = this.read(2);
 
                 if (payload == null || payload.length != 2 || payload[1] != (checkSum(header) ^ payload[0])) {
-                    getLogger().println("LockConnection::recvPacket("+id+"): Invalid lock battery power message");
+                    getLogger().println("LockConnection::recvPacket(" + id + "): Invalid lock battery power message");
                     return false;
                 }
 
-                getLogger().println("LockConnection::recvPacket("+id+"): Lock battery power: " + (int) payload[0]);
+                getLogger().println("LockConnection::recvPacket(" + id + "): Lock battery power: " + (int) payload[0]);
                 break;
             case COMMAND_STATUS:
                 payload = this.read(2);
 
                 if (payload == null || payload.length != 2 || payload[1] != (checkSum(header) ^ payload[0])) {
-                    getLogger().println("LockConnection::recvPacket("+id+"): Invalid lock status message");
+                    getLogger().println("LockConnection::recvPacket(" + id + "): Invalid lock status message");
                     return false;
                 }
 
-                getLogger().println("LockConnection::recvPacket("+id+"): Lock status: " + (int) payload[0]);
+                getLogger().println("LockConnection::recvPacket(" + id + "): Lock status: " + (int) payload[0]);
                 break;
             case COMMAND_SET_PASSWORD:
                 payload = this.read(4);
                 if (payload == null || payload.length != 4 || payload[6] != (checkSum(header) ^ checkSum(Arrays.copyOf(payload, 3)))) {
-                    getLogger().println("LockConnection::recvPacket("+id+"): Invalid set password message");
+                    getLogger().println("LockConnection::recvPacket(" + id + "): Invalid set password message");
                     return false;
                 }
                 break;
@@ -84,7 +85,7 @@ public abstract class LockConnection extends GattDeviceConnection {
                 payload = this.read(7);
 
                 if (payload == null || payload.length != 7 || payload[1] != (checkSum(header) ^ checkSum(payload, 6))) {
-                    getLogger().println("LockConnection::recvPacket("+id+"): Invalid set key message");
+                    getLogger().println("LockConnection::recvPacket(" + id + "): Invalid set key message");
                     return false;
                 }
 
@@ -96,11 +97,11 @@ public abstract class LockConnection extends GattDeviceConnection {
                 if (payload[0] == (byte) -21) {
                     //read 1 byte + checksum
                     this.read(1);
-                    getLogger().println("LockConnection::recvPacket("+id+"): Authentication failed: invalid password");
+                    getLogger().println("LockConnection::recvPacket(" + id + "): Authentication failed: invalid password");
                 } else {
                     //Read 3 bytes + checksum
                     this.read(7);
-                    getLogger().println("LockConnection::recvPacket("+id+"): Authentication succesful.");
+                    getLogger().println("LockConnection::recvPacket(" + id + "): Authentication succesful.");
                 }
 
                 break;

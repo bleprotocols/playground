@@ -1,5 +1,12 @@
 package com.common;
 
+import android.app.Activity;
+import android.content.Context;
+import android.content.Intent;
+import android.view.View;
+
+import com.gui.MeditationActivity;
+
 import java.security.SecureRandom;
 import java.util.TimerTask;
 import java.util.function.Predicate;
@@ -84,5 +91,13 @@ public class Common {
     public static IntStream intStream(byte[] array) {
         return IntStream.range(0, array.length).map(idx -> array[idx]);
     }
+
+    public static void navigateToActivity(Activity context, Class activity) {
+        Intent intent = new Intent(context, activity);
+        intent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+        context.startActivity(intent);
+        context.finish();
+    }
+
 
 }

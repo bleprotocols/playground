@@ -3,8 +3,9 @@ package com.bluetooth;
 import android.bluetooth.BluetoothAdapter;
 import android.bluetooth.BluetoothDevice;
 import android.bluetooth.BluetoothSocket;
+import android.content.Context;
 
-import com.devices.erostek.ErostekUUID;
+import com.devices.et312b.Et312BUUID;
 
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -12,10 +13,11 @@ import java.io.PrintStream;
 
 import static com.common.Common.sleep;
 
-public abstract class BluetoothConnection {
+public abstract class BluetoothConnection implements com.bluetooth.BluetoothDevice {
     //Parameters set by our getters/setters
     private PrintStream logger;
     private String deviceAddress;
+    private Context context;
 
     //Variables filled when we connect to our device
     private BluetoothAdapter bluetoothAdapter;
@@ -23,30 +25,40 @@ public abstract class BluetoothConnection {
     private OutputStream outputStream;
     private InputStream inputStream;
 
-
+    private boolean isConnected = false;
     private Object rxLock = new Object();
     private Object txLock = new Object();
 
-    //Getters and setters
-    public BluetoothConnection setLogger(PrintStream logger) {
+    @Override
+    public void setLogger(PrintStream logger) {
         this.logger = logger;
-        return this;
+    }
+
+    @Override
+    public void setContext(Context context) {
+        this.context = context;
+    }
+
+    @Override
+    public void setaddress(String deviceAddress) {
+        this.deviceAddress = deviceAddress;
+    }
+
+
+    protected Context getContext() {
+        return this.context;
     }
 
     protected PrintStream getLogger() {
         return this.logger;
     }
 
-    public BluetoothConnection setaddress(String deviceAddress) {
-        this.deviceAddress = deviceAddress;
-        return this;
-    }
 
     protected abstract void onConnect();
 
 
-    protected boolean connect() {
-        if (null != socket && socket.isConnected()) {
+    protected synchronized boolean connect() {
+        if (isConnected) {
             return true;
         }
 
@@ -60,13 +72,15 @@ public abstract class BluetoothConnection {
         BluetoothDevice mmDevice = bluetoothAdapter.getRemoteDevice(deviceAddress);
 
         try {
-            socket = mmDevice.createRfcommSocketToServiceRecord(ErostekUUID.SERIAL_PORT_UUID);
+            socket = mmDevice.createRfcommSocketToServiceRecord(Et312BUUID.SERIAL_PORT_UUID);
             socket.connect();
 
             outputStream = socket.getOutputStream();
             inputStream = socket.getInputStream();
 
+            isConnected = true;
             this.onConnect();
+
             return true;
         } catch (Exception ex) {
             return false;
@@ -74,7 +88,7 @@ public abstract class BluetoothConnection {
 
     }
 
-    protected boolean write(byte buffer[]) {
+    protected synchronized boolean write(byte buffer[]) {
         if (!connect()) {
             return false;
         }
@@ -93,7 +107,7 @@ public abstract class BluetoothConnection {
     }
 
 
-    protected boolean read(byte[] output, int timeout) {
+    protected synchronized boolean read(byte[] output, int timeout) {
         if (!connect()) {
             return false;
         }
@@ -127,11 +141,12 @@ public abstract class BluetoothConnection {
     }
 
 
-    protected void close() {
+    protected synchronized void close() {
         try {
             outputStream.close();
             inputStream.close();
             socket.close();
+            isConnected = false;
         } catch (Exception ex) {
         }
     }

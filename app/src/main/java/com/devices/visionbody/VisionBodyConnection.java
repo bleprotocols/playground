@@ -1,5 +1,7 @@
 package com.devices.visionbody;
 
+import android.bluetooth.BluetoothDevice;
+
 import com.ble.GattDeviceConnection;
 
 import static com.common.Common.*;
@@ -105,4 +107,9 @@ public abstract class VisionBodyConnection extends GattDeviceConnection {
 
     abstract void handleAck(int responseCode, byte[] response);
 
+
+    @Override
+    public boolean isDevice(BluetoothDevice result) {
+        return result.getName().startsWith("AAA-VB-02");
+    }
 }

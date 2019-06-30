@@ -1,46 +1,43 @@
+
 package com.session;
 
+import android.app.ActivityManager;
 import android.app.Notification;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.app.TaskStackBuilder;
+import android.content.Context;
 import android.content.Intent;
 import android.os.IBinder;
 import android.support.v4.app.NotificationCompat;
-import android.support.v4.content.LocalBroadcastManager;
 
-import com.bluetooth.BluetoothConnection;
+import com.bluetooth.BluetoothDevice;
+import com.bluetooth.Controller;
+import com.common.SharedSettings;
+import com.gui.BluetoothDeviceList;
 import com.gui.BroadcastOutputStream;
-import com.common.Common;
-import com.web.WebController;
-import com.web.WebControllerFactory;
 import com.example.visionbodyremote.R;
-import com.ble.GattDeviceConnection;
-import com.gui.BluetoothDeviceListItem;
-import com.gui.MainActivity;
 import com.gui.SessionActivity;
-
-import org.jsoup.Jsoup;
 
 import java.io.PrintStream;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.stream.Collectors;
+
+import static com.common.Common.sleep;
 
 public class SessionService extends Service {
     private String controllers = "";
     private Intent intent;
-    List<DeviceSession> sessionList = new ArrayList<>();
+    List<Controller> controllerList = new ArrayList<>();
+    Map<String, List<Controller>> actionTasks = new HashMap<>();
 
     PrintStream printStream = new PrintStream(new BroadcastOutputStream(this, "devlog"));
-    PrintStream sessionStream = new PrintStream(new BroadcastOutputStream(this, "sessions"));
 
-    @Override
-    public IBinder onBind(Intent intent) {
-        return null;
-    }
 
     private Notification updateNotification() {
-
         NotificationCompat.Builder mBuilder;
         mBuilder = new NotificationCompat.Builder(this)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
@@ -54,70 +51,27 @@ public class SessionService extends Service {
         resultIntent.putExtra("devices", intent.getSerializableExtra("devices"));
         resultIntent.putExtra("url", intent.getStringExtra("url"));
         resultIntent.putExtra("controllers", controllers);
+
+
+        //  stackBuilder.addParentStack(MainActivity.class);
+        // stackBuilder.addParentStack(SessionActivity.class);
+
         TaskStackBuilder stackBuilder = TaskStackBuilder.create(this);
-        stackBuilder.addParentStack(MainActivity.class);
-        stackBuilder.addParentStack(SessionActivity.class);
-
         stackBuilder.addNextIntent(resultIntent);
+        mBuilder.setContentIntent(stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT));
 
-        PendingIntent resultPendingIntent = stackBuilder.getPendingIntent(0, PendingIntent.FLAG_UPDATE_CURRENT);
-
-        mBuilder.setContentIntent(resultPendingIntent);
-
-        Notification notification = mBuilder.build();
-
-        return notification;
-    }
-
-    private String[] sessionFromUrl(String url, int splitCount) {
-        try {
-            String body = Jsoup.connect(url).execute().body();
-            String split[] = body.split(",");
-
-            if (split.length != splitCount) {
-                throw new RuntimeException();
-            }
-            return split;
-        } catch (Exception ex) {
-            printStream.println("Failed to get URL: " + url);
-        }
-
-        return new String[]{};
-    }
-
-    private void connectToDevice(String serverURL, String deviceAddress, String deviceType) {
-        String sessionCode = Common.generateString(6);
-        String connect_url = serverURL + "/get_session.php?session=" + sessionCode;
-        WebController webController = WebControllerFactory.get(deviceType);
-
-        if (webController instanceof GattDeviceConnection) {
-            ((GattDeviceConnection) webController).setaddress(deviceAddress)
-                    .setContext(this.getBaseContext())
-                    .setLogger(printStream);
-        } else {
-            ((BluetoothConnection) webController)
-                    .setaddress(deviceAddress)
-                    .setLogger(printStream);
-        }
-
-        controllers += webController.getControlURL(sessionCode) + ",";
-
-        Intent intent = new Intent("sessions");
-        intent.putExtra("extra", serverURL + "iframe.php?links=" + controllers);
-        LocalBroadcastManager.getInstance(this).sendBroadcast(intent);
-
-
-        sessionList.add(new DeviceSession()
-                .setController(webController)
-                .setURL(connect_url)
-                .makeThread());
+        return mBuilder.build();
     }
 
 
     @Override
     public void onDestroy() {
-        sessionList.forEach(x -> x.close());
-        sessionList.clear();
+
+    }
+
+    @Override
+    public IBinder onBind(Intent intent) {
+        return null;
     }
 
     @Override
@@ -126,31 +80,104 @@ public class SessionService extends Service {
             return Service.START_REDELIVER_INTENT;
         }
 
-        Object[] devices = (Object[]) intent.getSerializableExtra("devices");
+        //get devices from settings
+        //listen for settings changed
+        //start all devices here
 
-        if (devices == null || intent.getStringExtra("url") == null) {
-            return Service.START_REDELIVER_INTENT;
-        }
 
-        String url = intent.getStringExtra("url");
         this.intent = intent;
-
-        printStream = new PrintStream(new BroadcastOutputStream(this, "devlog"));
-        sessionStream = new PrintStream(new BroadcastOutputStream(this, "sessions"));
+        serviceInstance = this;
 
         if (intent.getAction().contains("start")) {
-            for (int i = 0; i < devices.length; i++) {
-                this.connectToDevice(url,
-                        ((BluetoothDeviceListItem) devices[i]).getAddress(),
-                        ((BluetoothDeviceListItem) devices[i]).getControllerName());
-            }
             startForeground(101, updateNotification());
-
         } else {
             stopForeground(true);
             stopSelf();
         }
 
         return Service.START_STICKY;
+    }
+
+    //rename this
+    public void addActionTask(String action, Controller webController) {
+        actionTasks.putIfAbsent(action, new ArrayList<>());
+        webController.setContext(this);
+        webController.startControlling();
+        actionTasks.get(action).add(webController);
+    }
+
+    public void removeActionTask(String action) {
+        actionTasks.computeIfPresent(action, (x, y) -> {
+            y.forEach(Controller::stopControlling);
+            return null;
+        });
+    }
+
+    public void refreshDevices() {
+        BluetoothDeviceList bluetoothDeviceList = SharedSettings.getBluetoothDeviceList(this);
+
+        if (bluetoothDeviceList == null) {
+            return;
+        }
+
+        controllerList.stream().filter(
+                x -> bluetoothDeviceList.stream().noneMatch(y -> y.getControllerName().equals(x.getTypeName()))
+        ).collect(Collectors.toList())
+                .forEach(x -> {
+                    x.stopControlling();
+                    controllerList.remove(x);
+                });
+
+        bluetoothDeviceList.stream()
+                .filter(x -> x.getEnabled())
+                .forEach(
+                        x -> {
+                            Controller controller = DeviceControllerFactory.get(x.getControllerName());
+                            controller.setContext(this);
+
+                            if (controller instanceof com.bluetooth.BluetoothDevice) {
+                                ((BluetoothDevice) controller).setaddress(x.getAddress());
+                                ((BluetoothDevice) controller).setLogger(printStream);
+                            }
+
+                            controller.startControlling();
+                            controllerList.add(controller);
+                        }
+                );
+
+    }
+
+
+    private static SessionService serviceInstance = null;
+    private static Object lock = new Object();
+
+    //why even bind when you can have a static variable?
+    public static SessionService getInstance(Context context) {
+        synchronized (lock) {
+            if (!isServiceRunning(context)) {
+                serviceInstance = null;
+                Intent serviceIntent = new Intent(context, SessionService.class);
+                serviceIntent.setAction("start");
+                serviceIntent.setFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP | Intent.FLAG_ACTIVITY_CLEAR_TOP);
+                context.startService(serviceIntent);
+            }
+        }
+
+        while (true) {
+            synchronized (lock) {
+                if (serviceInstance != null) {
+                    return serviceInstance;
+                }
+            }
+            sleep(10);
+        }
+    }
+
+    public static boolean isServiceRunning(Context context) {
+        ActivityManager manager = (ActivityManager) context.getSystemService(Context.ACTIVITY_SERVICE);
+
+        return manager.getRunningServices(Integer.MAX_VALUE)
+                .stream()
+                .anyMatch(x -> SessionService.class.getName().equals(x.service.getClassName()));
     }
 }

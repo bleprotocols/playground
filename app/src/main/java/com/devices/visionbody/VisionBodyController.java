@@ -1,13 +1,26 @@
 package com.devices.visionbody;
 
-import android.bluetooth.BluetoothDevice;
+import android.content.BroadcastReceiver;
+import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.support.v4.content.LocalBroadcastManager;
+
+import com.bluetooth.Controller;
+import com.devices.lovesense.LovesenseController;
+import com.rpc.RpcFunction;
+import com.rpc.RpcIntentHandler;
 
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.IntStream;
 
 import static com.common.Common.intStream;
 import static com.common.Common.printByteArray;
 import static com.common.Common.sleep;
+import static com.common.Common.wrap;
 import static com.common.CommonConstants.EMPTY_ARRAY;
 import static com.devices.visionbody.VisionBodyConstants.INTENSITY_STEP_COUNT_MAX;
 import static com.devices.visionbody.VisionBodyConstants.INTENSITY_STEP_INTERVAL;
@@ -32,21 +45,44 @@ import static com.devices.visionbody.VisionBodyMessageType.SYNCHRONIZE_COMMAND;
 import static com.devices.visionbody.VisionBodyMessageType.TRANSFER_IMAGE_CHUNK_RCOMMAND;
 import static java.lang.Math.abs;
 
-public class VisionBodyController extends VisionBodyConnection implements com.bluetooth.BluetoothDevice {
+public class VisionBodyController extends VisionBodyConnection implements Controller {
     private byte[] intensities = new byte[]{0, 0, 0, 0, 0, 0, 0, 0};
     private byte program = -1;
     private byte feel = -1;
     private byte stimduration = -1;
     private byte restduration = -1;
+    private RpcIntentHandler intentHandler = new RpcIntentHandler<>(VisionBodyController.class, this);
+    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-
-    protected void onConnect() {
-        intensities = new byte[]{0, 0, 0, 0, 0, 0, 0, 0};
-        program = -1;
-        feel = -1;
-        stimduration = -1;
-        restduration = -1;
+    public VisionBodyController() {
+        super();
+        //Schedule to read the intensities every 10 seconds to make sure we're not missing out on any settings
+        scheduler.scheduleAtFixedRate(wrap(() -> getIntensity()), 1, 10, TimeUnit.SECONDS);
     }
+
+    protected synchronized void onConnect() {
+        byte[] old_intensities = intensities;
+        intensities = new byte[]{0, 0, 0, 0, 0, 0, 0, 0};
+        byte old_program = program;
+        program = -1;
+        byte old_feel = feel;
+        feel = -1;
+        byte old_stimduration = stimduration;
+        stimduration = -1;
+        byte old_restduration = restduration;
+        restduration = -1;
+
+
+        //start out with our previous settings
+        if (old_program > 0 && old_feel > 0) {
+            loadProgram(programs.get(old_program), feels.get(old_feel), old_stimduration, old_restduration);
+        }
+
+        if (IntStream.rangeClosed(0, 7).anyMatch(i -> old_intensities[i] > 0)) {
+            setIntensity(old_intensities[0], old_intensities[1], old_intensities[2], old_intensities[3], old_intensities[4], old_intensities[5], old_intensities[6], old_intensities[7]);
+        }
+    }
+
 
     @Override
     public void onDisconnect() {
@@ -58,7 +94,8 @@ public class VisionBodyController extends VisionBodyConnection implements com.bl
         while (this.read(1).length > 0) ;
     }
 
-    public boolean loadProgram(String program, String feel, byte stimDuration, byte restDuration) {
+    @RpcFunction
+    public synchronized boolean loadProgram(String program, String feel, byte stimDuration, byte restDuration) {
         byte programCode = programs.contains(program) ? (byte) (programs.indexOf(program)) : (byte) 0;
         byte feelCode = feels.contains(feel) ? (byte) (feels.indexOf(feel)) : (byte) 0;
 
@@ -80,6 +117,7 @@ public class VisionBodyController extends VisionBodyConnection implements com.bl
         return this.startProgram();
     }
 
+    @RpcFunction
     public synchronized boolean setIntensity(byte upperBackIntensity, byte rearIntensity, byte legsIntesnsity, byte lowerBackIntensity, byte armsIntensity, byte neckIntensity, byte chestIntensity, byte stomachIntensity) {
         byte[] final_message = new byte[]{
                 upperBackIntensity, rearIntensity, legsIntesnsity, lowerBackIntensity, armsIntensity, neckIntensity, chestIntensity, stomachIntensity
@@ -125,7 +163,7 @@ public class VisionBodyController extends VisionBodyConnection implements com.bl
         return false;
     }
 
-    public boolean startProgram() {
+    public synchronized boolean startProgram() {
         getLogger().println("startProgram(): starting program.");
         return sendCommand(START_PROGRAM_COMMAND, EMPTY_ARRAY, true);
     }
@@ -315,10 +353,22 @@ public class VisionBodyController extends VisionBodyConnection implements com.bl
     void handleAck(int responseCode, byte[] response) {
     }
 
+    @Override
+    public synchronized void startControlling() {
+        intentHandler.registerHandler(getContext(), "visionbody_control");
+        this.connect();
+    }
 
     @Override
-    public boolean isDevice(BluetoothDevice result) {
-        return result.getName().startsWith("AAA-VB-02");
+    public synchronized void stopControlling() {
+        intentHandler.unregisterHandler(getContext());
+        this.close();
+    }
+
+
+    @Override
+    public String getTypeName() {
+        return "VisionBody";
     }
 
 }
