@@ -81,7 +81,9 @@ public class SessionActivity extends AppCompatActivity {
                 SharedSettings.getBluetoothDeviceList(this)
                         .stream()
                         .filter(x -> x.getEnabled())
-                        .map(x -> HTTPControllerFactory.get(x.getControllerName()))
+                        .map(x->x.getControllerName())
+                        .distinct()
+                        .map(x -> HTTPControllerFactory.get(x))
                         .filter(Objects::nonNull)
                         .map(x -> {
                             String sessionKey = Common.generateString(6);

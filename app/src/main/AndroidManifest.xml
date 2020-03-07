@@ -3,6 +3,7 @@
     package="com.example.visionbodyremote">
 
     <application
+        android:usesCleartextTraffic="true"
         android:allowBackup="true"
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
@@ -21,6 +22,8 @@
         <activity android:name="com.gui.ConfigureDevicesActivity" android:parentActivityName="com.gui.MainActivity"  android:alwaysRetainTaskState="true"  android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity android:name="com.gui.ConfigureParametersActivity" android:parentActivityName="com.gui.MainActivity"  android:alwaysRetainTaskState="true"  android:configChanges="orientation|screenSize|keyboardHidden" />
         <activity android:name="com.gui.MeditationActivity" android:parentActivityName="com.gui.MeditationActivity"  android:alwaysRetainTaskState="true"  android:configChanges="orientation|screenSize|keyboardHidden" />
+        <activity android:name="com.gui.ExerciseActivity" android:parentActivityName="com.gui.ExerciseActivity"  android:alwaysRetainTaskState="true"  android:configChanges="orientation|screenSize|keyboardHidden" />
+        <activity android:name="com.gui.RelayActivity" android:parentActivityName="com.gui.RelayActivity"  android:alwaysRetainTaskState="true"  android:configChanges="orientation|screenSize|keyboardHidden" />
 
 
         <service android:name="com.session.SessionService"  />

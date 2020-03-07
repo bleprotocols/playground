@@ -32,9 +32,6 @@ public class ConfigureDevicesActivity extends AppCompatActivity {
 
     private List<Controller> webControllerList = DeviceControllerFactory.all();
 
-    //List of device controllers - permanently active
-    //List of controlTasks - active during session
-
 
     private void onDeviceFound(ScanResult x) {
         if (x.getDevice() != null && x.getDevice().getName() != null) {
@@ -74,7 +71,7 @@ public class ConfigureDevicesActivity extends AppCompatActivity {
         new Handler().postDelayed(wrap(() -> this.gattDeviceScanner.stop()), 15000);
     }
 
-    public void clearDevices(View view){
+    public void clearDevices(View view) {
         bluetoothDeviceList.clear();
     }
 
@@ -99,6 +96,7 @@ public class ConfigureDevicesActivity extends AppCompatActivity {
     public void loadFromSettings() {
         bluetoothDeviceList = SharedSettings.getBluetoothDeviceList(this);
         bindNewDeviceList();
+        SessionService.getInstance(this).clearDevices();
     }
 
 
@@ -138,5 +136,6 @@ public class ConfigureDevicesActivity extends AppCompatActivity {
 
         gattDeviceScanner = new GattDeviceScanner(this::onDeviceFound, this.getBaseContext());
         loadFromSettings();
+
     }
 }

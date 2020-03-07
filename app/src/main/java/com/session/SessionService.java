@@ -3,6 +3,8 @@ package com.session;
 
 import android.app.ActivityManager;
 import android.app.Notification;
+import android.app.NotificationChannel;
+import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.app.Service;
 import android.app.TaskStackBuilder;
@@ -38,12 +40,24 @@ public class SessionService extends Service {
 
 
     private Notification updateNotification() {
-        NotificationCompat.Builder mBuilder;
-        mBuilder = new NotificationCompat.Builder(this)
+        String channelId = "VisionBodyRemote";
+
+        NotificationManager notificationManager = (NotificationManager) getSystemService(Context.NOTIFICATION_SERVICE);
+
+        if(notificationManager.getNotificationChannel(channelId)== null) {
+            NotificationChannel notificationChannel = new NotificationChannel(channelId, channelId, NotificationManager.IMPORTANCE_DEFAULT);
+            notificationChannel.setDescription(channelId);
+            notificationChannel.setSound(null, null);
+            notificationManager.createNotificationChannel(notificationChannel);
+        }
+
+        Notification.Builder mBuilder;
+        mBuilder = new Notification.Builder(this)
                 .setSmallIcon(R.drawable.ic_launcher_foreground)
                 .setContentTitle("Running session")
                 .setContentText("Running session")
-                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .setPriority(Notification.PRIORITY_DEFAULT)
+                .setChannelId("VisionBodyRemote")
                 .setOngoing(true);
 
         Intent resultIntent = new Intent(this, SessionActivity.class);
@@ -113,6 +127,10 @@ public class SessionService extends Service {
         });
     }
 
+    public void clearDevices(){
+        controllerList.stream().forEach(x->x.stopControlling());
+        controllerList.clear();
+    }
     public void refreshDevices() {
         BluetoothDeviceList bluetoothDeviceList = SharedSettings.getBluetoothDeviceList(this);
 

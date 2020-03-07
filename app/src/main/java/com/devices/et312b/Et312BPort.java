@@ -1,13 +1,29 @@
 package com.devices.et312b;
 
+import com.ble.GattDeviceConnection;
 import com.bluetooth.BluetoothConnection;
 
 import static com.common.Common.doUntilTrue;
 import static com.common.Common.sleep;
 import static com.devices.et312b.Et312BConstants.*;
+import static com.devices.et312b.Et312BUUID.RX_UUID;
+import static com.devices.et312b.Et312BUUID.SERIAL_PORT_UUID;
+import static com.devices.et312b.Et312BUUID.TX_UUID;
 
-public abstract class Et312BPort extends BluetoothConnection {
+public abstract class Et312BPort extends GattDeviceConnection {
     private byte connection_key;
+    private static final byte[] NULL_BYTE = new byte[]{0};
+
+    public Et312BPort() {
+        this.
+                setServiceUUID(SERIAL_PORT_UUID)
+                .setRxUUID(RX_UUID)
+                .setTxUUID(TX_UUID)
+                .setAutoReconnect(false)
+                .setTxRxTimeout(2000)
+                .setConnectionTimeout(5000);
+
+    }
 
     /*
     Section: logged commands. Commands that are neccesary to initialize our connection.
@@ -17,19 +33,18 @@ public abstract class Et312BPort extends BluetoothConnection {
 
     private synchronized void flushCommandBuffer() {
         byte[] buffer = {0};
-        this.connect();
 
         getLogger().println("flushCommandBuffer: Flushing command buffer on box.");
 
-        for (int i = 0; i < 4096; i++) if (!this.read(buffer, SMALL_TIMEOUT)) break;
+        for (int i = 0; i < 4096; i++) if (this.read(1, SMALL_TIMEOUT).length == 0) break;
 
         for (int i = 0; i < 11; i++) {
-            buffer[0] = 0;
-            this.write(buffer);
+            this.write(NULL_BYTE);
 
-            if (this.read(buffer, SMALL_TIMEOUT) && Et312BConstants.response_code.ERROR == buffer[0]) {
+            buffer = this.read(1, SMALL_TIMEOUT);
+            if (buffer.length > 0 && Et312BConstants.response_code.ERROR == buffer[0]) {
                 getLogger().println("  flushCommandBuffer: buffer flushed after " + i + " bytes.");
-                break;
+                return;
             }
         }
     }
@@ -47,7 +62,7 @@ public abstract class Et312BPort extends BluetoothConnection {
     private synchronized void setBoxKey() {
         getLogger().println("  setBoxKey: Overwriting box key with our own.");
 
-        if (!writeMem(Et312BConstants.RAM.BOX_KEY, DEFAULT_KEY, true, SMALL_TIMEOUT))
+        if (!writeMem(Et312BConstants.RAM.BOX_KEY, DEFAULT_KEY, false, SMALL_TIMEOUT))
             getLogger().println("  setBoxKey: Failed to write box key.");
         else {
             getLogger().println("  setBoxKey: Encryption set up. Box key set to " + (int) DEFAULT_KEY + ".");
@@ -57,24 +72,17 @@ public abstract class Et312BPort extends BluetoothConnection {
 
 
     protected synchronized void onConnect() {
-        getLogger().println("  onConnect: Sending single-byte read to determine if the connection was previously initialized.");
-        this.connection_key = 0;
-        this.flushCommandBuffer();
-
-        if (testConnection()) {
-            getLogger().println("  onConnect: Recieved unencrypted response code.");
-            this.initialKeyExchange();
-        } else {
-            getLogger().println("  onConnect: Box previously synched");
-            this.resumeWithKey();
-        }
+        this.resumeWithKey();
     }
 
     private synchronized void initialKeyExchange() {
+        this.flushCommandBuffer();
+        this.connection_key = 0;
+
         byte result[] = {0, 0, 0};
         byte exchange[] = {Et312BConstants.command.EXCHANGE_KEY, 0};
         getLogger().println("  init_initial: Setting up encryption.");
-        this.doCommand(exchange, result, SMALL_TIMEOUT);
+        this.doCommand(exchange, result, 1500);
 
         if (result[0] != (byte) (Et312BConstants.response_code.KEY_EXCHANGE | 0x20)) {
             getLogger().println("  initialKeyExchange: Unexpected return code from device. Trying previously exchanged key.");
@@ -106,6 +114,9 @@ public abstract class Et312BPort extends BluetoothConnection {
             return;
         }
 
+        getLogger().println("  resumeWithKey: Unable to connect - trying to setup key.");
+        this.initialKeyExchange();
+
         if (KEY_GUESSING_ENABLED) {
             getLogger().println("  resumeWithKey: Box configured with different key. Guessing key.");
 
@@ -121,8 +132,6 @@ public abstract class Et312BPort extends BluetoothConnection {
                 }
             }
         }
-
-        getLogger().println("  resumeWithKey: Unable to connect please restart your device.");
     }
 
     protected synchronized void boxCommand(byte command) {
@@ -149,7 +158,7 @@ public abstract class Et312BPort extends BluetoothConnection {
             getLogger().println("  writeMem(" + address + "," + (int) value + "): Serial port Unexpected return code from device: " + (int) result[0] + ".");
 
             if (disconnect_on_error)
-                this.close();
+                this.onConnect();
 
             sleep(40);
 
@@ -170,8 +179,7 @@ public abstract class Et312BPort extends BluetoothConnection {
             getLogger().println("  readMem(" + dest + "," + address + "): Unexpected return code from device: " + (int) result[0] + ".");
 
             if (disconnect_on_error)
-                this.close();
-
+                this.onConnect();
             return false;
         }
 
@@ -179,7 +187,7 @@ public abstract class Et312BPort extends BluetoothConnection {
             getLogger().println("  readMem(" + dest + "," + address + "): Checksum ERROR in response from device.");
 
             if (disconnect_on_error)
-                this.close();
+                this.onConnect();
 
             return false;
         }
@@ -210,8 +218,13 @@ public abstract class Et312BPort extends BluetoothConnection {
                 send_buffer[c] = (byte) (send_buffer[c] ^ this.connection_key);
         }
 
-        this.connect();
-        return doUntilTrue(this, x -> write(send_buffer), timeout) && doUntilTrue(this, x -> read(output, timeout), timeout);
+        if (!this.connect()) return false;
+
+        write(send_buffer);
+        byte[] result = read(output.length, timeout);
+        System.arraycopy(result, 0, output, 0, result.length);
+
+        return result.length == output.length;
     }
 
     private static byte packetChecksum(byte buffer[], byte length) {

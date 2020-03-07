@@ -46,7 +46,7 @@ public class Common {
     }
 
     public static void sleep(long milis) {
-        if(milis<=0){
+        if (milis <= 0) {
             return;
         }
 
@@ -82,10 +82,17 @@ public class Common {
             if (function.test(obj)) {
                 return true;
             }
-            sleep(5);
+            sleep(10);
         }
 
         return false;
+    }
+
+    public static void doUntil(Runnable r, long timeout) {
+        for (long i = System.currentTimeMillis(); (System.currentTimeMillis() - i) < timeout; ) {
+            r.run();
+            sleep(5);
+        }
     }
 
     public static IntStream intStream(byte[] array) {

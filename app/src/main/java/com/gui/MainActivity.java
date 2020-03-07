@@ -2,7 +2,6 @@ package com.gui;
 
 import android.content.Intent;
 import android.os.Bundle;
-import android.speech.tts.TextToSpeech;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.widget.Toast;
@@ -69,37 +68,36 @@ public class MainActivity extends AppCompatActivity {
 
 
     public void settingsClick(View view) {
-        navigateToActivity(this,ConfigureParametersActivity.class);
+        navigateToActivity(this, ConfigureParametersActivity.class);
     }
 
     public void meditationClick(View view) {
-        navigateToActivity(this,MeditationActivity.class);
+        navigateToActivity(this, MeditationActivity.class);
     }
 
 
     public void configureDevicesClick(View view) {
-        navigateToActivity(this,ConfigureDevicesActivity.class);
+        navigateToActivity(this, ConfigureDevicesActivity.class);
     }
 
+    public void exerciseClick(View view) {
+        navigateToActivity(this, ExerciseActivity.class);
+    }
+
+    public void relayClick(View view) {
+        navigateToActivity(this, RelayActivity.class);
+    }
+
+    @Override
+    protected void onStart(){
+        super.onStart();
+        new Thread(wrap(() -> SessionService.getInstance(this).refreshDevices())).start();
+    }
     //retrieve user settings.
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
 
         setContentView(R.layout.activity_main);
-        new Thread(wrap(() -> SessionService.getInstance(this).refreshDevices())).start();
-
-/*
-    <uses-permission android:name="android.permission.BLUETOOTH"/>
-    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN"/>
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" />
- */
-
     }
 }

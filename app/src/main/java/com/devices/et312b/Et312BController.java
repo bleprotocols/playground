@@ -24,25 +24,71 @@ import static com.devices.et312b.Et312BConstants.SMALL_TIMEOUT;
 import static com.devices.et312b.Et312BConstants.mode_names;
 import static com.devices.et312b.Et312BConstants.power_levels;
 import static java.lang.Math.max;
+import static java.lang.Math.min;
 
 public class Et312BController extends Et312BPort implements Controller {
     private int chAPower = 0;
     private int chBPower = 0;
+
+    private int chAGoalPower = 0;
+    private int chBGoalPower = 0;
+
+
+    private int multiAdjustLevel = 0;
+    private int goalMultiAdjustLevel = 0;
+
+
     private byte chAMode = 0;
     private byte chBMode = 0;
+
     private byte powerLevel = 0;
-    private int multiAdjustLevel = 0;
+
     private boolean potentiometersEnabled = true;
     private RpcIntentHandler intentHandler = new RpcIntentHandler<>(Et312BController.class, this);
-    private final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private ScheduledExecutorService scheduler;
+
+    @Override
+    protected void onDisconnect() {
+
+    }
 
     public Et312BController() {
         super();
         //Ping every second to keep connection alive
-        scheduler.scheduleAtFixedRate(wrap(() -> ping()), 1, 1, TimeUnit.SECONDS);
+
+
+    }
+
+    public synchronized void synchronizePower() {
+        if (chAGoalPower != chAPower) {
+            this.disablePotentiometers();
+
+            int diff = chAGoalPower - chAPower;
+            diff = diff > 0 ? min(diff, 10) : max(diff, -10);
+            this.fadeParameter(plevel -> this.chAPower = plevel, Et312BConstants.ADC_REGISTERS.POT_A, this.chAPower, chAPower + diff);
+        }
+
+        if (chBGoalPower != chBPower) {
+            this.disablePotentiometers();
+
+            int diff = chBGoalPower - chBPower;
+            diff = diff > 0 ? min(diff, 10) : max(diff, -10);
+            this.fadeParameter(plevel -> this.chBPower = plevel, Et312BConstants.ADC_REGISTERS.POT_B, this.chBPower, chBPower + diff);
+        }
+    }
+
+    public synchronized void synchronizeMultiAdjust() {
+        if (multiAdjustLevel != goalMultiAdjustLevel) {
+            this.disablePotentiometers();
+
+            int diff = goalMultiAdjustLevel - multiAdjustLevel;
+            diff = diff > 0 ? min(diff, 10) : max(diff, -10);
+            this.fadeParameter(ma -> this.multiAdjustLevel = ma, Et312BConstants.ADC_REGISTERS.MULTI_ADJUST, this.multiAdjustLevel, multiAdjustLevel + diff);
+        }
     }
 
     private synchronized void ping() {
+        for (int i = 0; i < 4096; i++) if (this.read(1, SMALL_TIMEOUT).length==0) break;
         readMem(new byte[1], Et312BConstants.FLASH_MEMORY.BOX_MODEL, true, SMALL_TIMEOUT);
     }
 
@@ -53,17 +99,8 @@ public class Et312BController extends Et312BPort implements Controller {
             return;
         }
 
-        chAPower = (int) (chAPower * PERCENTAGE_STEP);
-        chBPower = (int) (chBPower * PERCENTAGE_STEP);
-
-
-        if (chAPower == this.chAPower && chBPower == this.chBPower)
-            return;
-
-        getLogger().println("   setPower(" + (int) chAPower + "," + (int) chBPower + "): setting power levels.");
-        this.disablePotentiometers();
-        this.fadeParameter(plevel -> this.chAPower = plevel, Et312BConstants.ADC_REGISTERS.POT_A, this.chAPower, chAPower);
-        this.fadeParameter(plevel -> this.chBPower = plevel, Et312BConstants.ADC_REGISTERS.POT_B, this.chBPower, chBPower);
+        chAGoalPower = chAPower;
+        chBGoalPower = chBPower;
     }
 
 
@@ -98,14 +135,7 @@ public class Et312BController extends Et312BPort implements Controller {
             return;
         }
 
-        level = (int) (level * PERCENTAGE_STEP);
-
-        if (this.multiAdjustLevel == level)
-            return;
-
-        getLogger().println("   setMultiAdjust(" + (int) level + "): setting multi-adjust level.");
-        this.disablePotentiometers();
-        this.fadeParameter(ma -> this.multiAdjustLevel = ma, Et312BConstants.ADC_REGISTERS.MULTI_ADJUST, this.multiAdjustLevel, level);
+        goalMultiAdjustLevel = level;
     }
 
 
@@ -119,12 +149,14 @@ public class Et312BController extends Et312BPort implements Controller {
 
         for (int i = from; i != to; i += step) {
             long start = System.currentTimeMillis();
-            writeMem(parameter, (byte) i);
+            if(!writeMem(parameter, (byte) (i * PERCENTAGE_STEP))){
+                return;
+            }
             updateFunc.accept(i);
             sleep(fade - (System.currentTimeMillis() - start));
         }
 
-        writeMem(parameter, (byte) to);
+        writeMem(parameter, (byte) (to * PERCENTAGE_STEP));
         updateFunc.accept(to);
         sleep(fade);
     }
@@ -236,36 +268,41 @@ public class Et312BController extends Et312BPort implements Controller {
         getMode();
         setMode(mode_names[prevAMode], mode_names[prevBMode]);
 
-        //reading power settings isn't safe, set them instead.
-        int prevAPower = this.chAPower, prevBPower = this.chBPower;
-       //readParameter(x -> this.chAPower = x, Et312BConstants.ADC_REGISTERS.POT_A);
-       //readParameter(x -> this.chBPower = x, Et312BConstants.ADC_REGISTERS.POT_B);
-        setPower((int) (prevAPower / PERCENTAGE_STEP), (int) (prevBPower / PERCENTAGE_STEP));
+        //force reset the power
+        this.chAPower = max(this.chAPower - 1, 0);
+        this.chBPower = max(this.chBPower - 1, 0);
 
         String prevPowerLevel = power_levels[this.powerLevel - 1];
         //readParameter(x -> this.powerLevel = x, Et312BConstants.RAM.POWER_LEVEL);
         setPowerLevel(prevPowerLevel);
 
-        int prevNultiAdjust = this.multiAdjustLevel;
-        readParameter(x -> this.multiAdjustLevel = x, Et312BConstants.ADC_REGISTERS.MULTI_ADJUST);
-        setMultiAdjust((int) (prevNultiAdjust / PERCENTAGE_STEP));
+        //force reset multi=adjust
+        this.multiAdjustLevel = max(this.multiAdjustLevel - 1, 0);
     }
+    //test with conflicting commands.
+
 
     @Override
     public boolean isDevice(BluetoothDevice result) {
-        return result.getName().equals("EROSTEK");
+        return result.getName().equals("ET312B");
     }
 
 
     @Override
     public synchronized void startControlling() {
         intentHandler.registerHandler(getContext(), "erostek_control");
+
         this.connect();
+        scheduler = Executors.newSingleThreadScheduledExecutor();
+        //   scheduler.scheduleAtFixedRate(wrap(() -> ping()), 1, 1, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(wrap(() -> synchronizePower()), 1, 1, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(wrap(() -> synchronizeMultiAdjust()), 1, 2, TimeUnit.SECONDS);
     }
 
     @Override
     public synchronized void stopControlling() {
         intentHandler.unregisterHandler(getContext());
+        scheduler.shutdownNow();
         this.close();
     }
 

@@ -11,10 +11,17 @@ import com.devices.lock.LockController;
 import com.rpc.RpcFunction;
 import com.rpc.RpcIntentHandler;
 
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import static com.common.Common.wrap;
+
 
 public class LovesenseController extends LovesenseConnection implements Controller {
     private RpcIntentHandler intentHandler = new RpcIntentHandler<>(LovesenseController.class, this);
     int intensity = 0;
+    private  ScheduledExecutorService scheduler;
 
     @Override
     protected void onConnect() {
@@ -27,25 +34,26 @@ public class LovesenseController extends LovesenseConnection implements Controll
             getLogger().println("LovesenseController:setIntensity(" + intensity + "): invalid intensity. ");
         }
 
-        if (intensity == this.intensity) {
-            return;
-        }
+        this.intensity=intensity;
+    }
 
-        getLogger().println("LovesenseController:setIntensity(" + intensity + "): setting intensity. ");
-
+    public void syncIntensity(){
         sendCommand("Vibrate:" + intensity + ";");
-        this.intensity = intensity;
     }
 
     @Override
     public synchronized void startControlling() {
         intentHandler.registerHandler(getContext(), "lovesense_control");
+        scheduler = Executors.newSingleThreadScheduledExecutor();
+        scheduler.scheduleAtFixedRate(wrap(() -> syncIntensity()), 1, 1, TimeUnit.SECONDS);
+
         this.connect();
     }
 
     @Override
     public synchronized void stopControlling() {
         intentHandler.unregisterHandler(getContext());
+        scheduler.shutdownNow();
     }
 
     @Override

@@ -15,7 +15,10 @@ public abstract class VisionBodyConnection extends GattDeviceConnection {
         super();
         this.setServiceUUID(VisionBodyUUID.VISION_BODY_BOX_SERVICE)
                 .setTxUUID(VisionBodyUUID.VISION_BODY_TX_CHANNEL)
-                .setRxUUID(VisionBodyUUID.VISION_BODY_RX_CHANNEL);
+                .setRxUUID(VisionBodyUUID.VISION_BODY_RX_CHANNEL)
+                .setAutoReconnect(false)
+        .setConnectionTimeout(5000)
+        .setTxRxTimeout(2000);
     }
 
     public boolean sendCommand(byte commandNo, byte[] body, boolean isAck) {

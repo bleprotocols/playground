@@ -24,6 +24,5 @@ public abstract class Et302RConnection extends GattDeviceConnection {
         byte command[] = {(byte) 0xFF, button, (byte) (duration >> 8), (byte) (duration & 0xff), (byte) 0xFF};
         byte response[] = {(byte) 0xFE, button, (byte) (duration >> 8), (byte) (duration & 0xff), (byte) 0xFE};
         this.write(command);
-        sleep(duration +110);
     }
 }

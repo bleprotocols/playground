@@ -5,6 +5,7 @@ import android.content.Context;
 import com.bluetooth.Controller;
 
 import com.devices.et302r.ET302RInterface;
+import com.devices.et312b.Et312BInterface;
 import com.devices.lock.LockInterface;
 import com.devices.textToSpeech.TextToSpeechInterface;
 import com.rpc.RpcFunction;
@@ -35,6 +36,38 @@ public class MeditationGameController implements Controller {
     boolean isShockEnabled = false;
     static final long shock_delay = 5000;
 
+    int punishmentLevel = 0;
+    int rewardLevel = 15;
+
+
+    void doReward() {
+        rewardLevel++;
+        if (rewardLevel > 99) rewardLevel = 99;
+
+        punishmentLevel -= 4;
+        if (punishmentLevel < 0) punishmentLevel = 0;
+        refreshValues();
+
+        ET302RInterface.sendButton(context, BUTTON_A_UP, 100);
+        ET302RInterface.sendButton(context, BUTTON_B_DOWN, 1000);
+    }
+
+    void doPunishment() {
+        rewardLevel -= 15;
+        if (rewardLevel < 0) rewardLevel = 0;
+
+        punishmentLevel += 20;
+        if (punishmentLevel > 99) punishmentLevel = 99;
+        refreshValues();
+
+        ET302RInterface.sendButton(context, BUTTON_A_DOWN, 1400);
+        ET302RInterface.sendButton(context, BUTTON_B_UP, 4000);
+    }
+
+    void refreshValues() {
+        Et312BInterface.setPower(context, rewardLevel, punishmentLevel);
+    }
+
     @Override
     public void startControlling() {
         scheduler = Executors.newSingleThreadScheduledExecutor();
@@ -45,6 +78,10 @@ public class MeditationGameController implements Controller {
             TextToSpeechInterface.speak(context, "Welcome to the meditation game. Please assume a comfortable position. In 2 minutes any locks you enabled will be locked and the game will begin.");
             ET302RInterface.sendButton(context, BUTTON_MODE_UP, 1);
             ET302RInterface.sendButton(context, BUTTON_MODE_UP, 1);
+
+            Et312BInterface.setMode(context,"Waves","Waves");
+            Et312BInterface.setMultiAdjust(context,100);
+            Et312BInterface.setPowerLevel(context,"High");
 
         }), 1, TimeUnit.SECONDS);
 
@@ -60,12 +97,9 @@ public class MeditationGameController implements Controller {
             TextToSpeechInterface.speak(context, "Your movement level has been recorded. Please sit still and meditate.");
             isShockEnabled = true;
             recordingMax = false;
-            scheduler.scheduleAtFixedRate(wrap(() -> {
-                ET302RInterface.sendButton(context, BUTTON_A_UP, 100);
-            }), 0, (long) (50 * timeFactor), TimeUnit.SECONDS);
-            scheduler.scheduleAtFixedRate(wrap(() -> {
-                ET302RInterface.sendButton(context, BUTTON_B_DOWN, 1000);
-            }), 0, (long) (20 * timeFactor), TimeUnit.SECONDS);
+            scheduler.scheduleWithFixedDelay(wrap(() -> {
+                doReward();
+            }), 0, (long) (18 * timeFactor), TimeUnit.SECONDS);
         }), (long) (170 * timeFactor), TimeUnit.SECONDS);
 
 
@@ -77,7 +111,10 @@ public class MeditationGameController implements Controller {
             isShockEnabled = false;
             ET302RInterface.sendButton(context, BUTTON_B_DOWN, 15000);
             ET302RInterface.sendButton(context, BUTTON_A_DOWN, 15000);
-        }), (long) (timeFactor * (170 + (random() * 60 * 20) + (60 * 20))), TimeUnit.SECONDS);
+            rewardLevel = 0;
+            punishmentLevel = 0;
+            refreshValues();
+        }), (long) (timeFactor * (170 + (random() * 60 * 15) + (60 * 15))), TimeUnit.SECONDS);
 
 
         intentHandler.registerHandler(context, "gyroscope");
@@ -91,8 +128,7 @@ public class MeditationGameController implements Controller {
         } else {
             if (isShockEnabled && (movementVectorLength > (maxMovement * 1.6)) && (System.currentTimeMillis() > (lastShocked + shock_delay))) {
                 TextToSpeechInterface.speak(context, "Sit still.");
-                ET302RInterface.sendButton(context, BUTTON_B_UP, 3000);
-                ET302RInterface.sendButton(context, BUTTON_A_DOWN, 1400);
+                doPunishment();
 
                 lastShocked = System.currentTimeMillis();
             }

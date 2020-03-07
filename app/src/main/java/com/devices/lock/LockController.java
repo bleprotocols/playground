@@ -28,6 +28,10 @@ public class LockController extends LockConnection implements Controller {
     private RpcIntentHandler intentHandler = new RpcIntentHandler<>(LockController.class, this);
     private ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
+    public LockController() {
+        super();
+    }
+
     public static byte[] keyStrToBytes(String pwd) {
         ByteBuffer byteBuffer = ByteBuffer.allocate(6);
         for (int i = 0; i <= 5; i++) {
@@ -116,7 +120,7 @@ public class LockController extends LockConnection implements Controller {
     @Override
     public void startControlling() {
         intentHandler.registerHandler(getContext(), "lock_command");
-        scheduler.scheduleAtFixedRate(wrap(()->this.connect()),1,1, TimeUnit.SECONDS);
+        scheduler.scheduleWithFixedDelay(wrap(() -> this.connect()), 1000, 500, TimeUnit.MILLISECONDS);
     }
 
     @Override

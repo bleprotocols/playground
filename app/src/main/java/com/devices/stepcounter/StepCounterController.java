@@ -1,8 +1,5 @@
 package com.devices.stepcounter;
 
-//Update: stepsToday in preferences
-//Update: steps in log every hour
-//Update:
 
 import android.content.Context;
 import android.hardware.Sensor;

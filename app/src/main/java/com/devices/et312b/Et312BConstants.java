@@ -7,7 +7,7 @@ package com.devices.et312b;
 public class Et312BConstants {
 
     public static final String mode_names[] =
-            {"Waves", "Stroke", "Climb", "Combo", "Intense", "Rythm", "Audio1", "Audio2", "Audio3", "Split", "Random1", "Random2", "Toggle", "Orgasm", "Torment", "Phase1", "PHASE_2", "PHASE_3", "User1", "User2", "User3", "User4", "User5", "User6", "User7"};
+            {"Waves", "Stroke", "Climb", "Combo", "Intense", "Rythm", "Audio1", "Audio2", "Audio3", "Split", "Random1", "Random2", "Toggle", "Orgasm", "Torment", "Phase1", "Phase2", "Phase3", "User1", "User2", "User3", "User4", "User5", "User6", "User7"};
 
     public static final String power_levels[] = {"Low", "Normal", "High"};
 
@@ -18,7 +18,7 @@ public class Et312BConstants {
 
     public static final short COMMAND_TIMEOUT = 1000;// General command timeout. Will retry until reached.
 
-    public static final short SMALL_TIMEOUT = 80;// Small timeout to use on connection for operators that might not return
+    public static final short SMALL_TIMEOUT = 500;// Small timeout to use on connection for operators that might not return
     public static final boolean KEY_GUESSING_ENABLED = false; //Should we bruteforce the box key if we can't connect with our default key
     public static final short MAX_LEVEL = 100; //Maximum level for each of the knobs
 

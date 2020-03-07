@@ -10,8 +10,11 @@ import com.devices.et312b.Et312BUUID;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.PrintStream;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 import static com.common.Common.sleep;
+import static com.common.Common.wrap;
 
 public abstract class BluetoothConnection implements com.bluetooth.BluetoothDevice {
     //Parameters set by our getters/setters
@@ -28,6 +31,9 @@ public abstract class BluetoothConnection implements com.bluetooth.BluetoothDevi
     private boolean isConnected = false;
     private Object rxLock = new Object();
     private Object txLock = new Object();
+
+    private long sinceLastConnect = System.currentTimeMillis();
+    ExecutorService callbacksOnEvents = Executors.newSingleThreadExecutor();
 
     @Override
     public void setLogger(PrintStream logger) {
@@ -62,6 +68,9 @@ public abstract class BluetoothConnection implements com.bluetooth.BluetoothDevi
             return true;
         }
 
+        sleep(1000 - (System.currentTimeMillis() - sinceLastConnect));
+        sinceLastConnect = System.currentTimeMillis();
+
         if (null == bluetoothAdapter) {
             bluetoothAdapter = BluetoothAdapter.getDefaultAdapter();
         }
@@ -71,15 +80,25 @@ public abstract class BluetoothConnection implements com.bluetooth.BluetoothDevi
 
         BluetoothDevice mmDevice = bluetoothAdapter.getRemoteDevice(deviceAddress);
 
+        if (mmDevice == null) {
+            return false;
+        }
+
         try {
             socket = mmDevice.createRfcommSocketToServiceRecord(Et312BUUID.SERIAL_PORT_UUID);
+
+            if (socket.isConnected()) {
+                return false;
+            }
+
             socket.connect();
 
             outputStream = socket.getOutputStream();
             inputStream = socket.getInputStream();
 
             isConnected = true;
-            this.onConnect();
+
+            callbacksOnEvents.submit(wrap(()->this.onConnect()));
 
             return true;
         } catch (Exception ex) {

@@ -57,10 +57,12 @@ public class VisionBodyController extends VisionBodyConnection implements Contro
     public VisionBodyController() {
         super();
         //Schedule to read the intensities every 10 seconds to make sure we're not missing out on any settings
-        scheduler.scheduleAtFixedRate(wrap(() -> getIntensity()), 1, 10, TimeUnit.SECONDS);
+        scheduler.scheduleAtFixedRate(wrap(() -> getBatteryLevel()), 1, 30, TimeUnit.SECONDS);
     }
 
     protected synchronized void onConnect() {
+        while (this.read(1).length > 0) ;//clear old buffers
+
         byte[] old_intensities = intensities;
         intensities = new byte[]{0, 0, 0, 0, 0, 0, 0, 0};
         byte old_program = program;
@@ -105,16 +107,18 @@ public class VisionBodyController extends VisionBodyConnection implements Contro
 
         getLogger().println("loadProgram(\"" + program + "\",\"" + feel + "\"," + stimDuration + "," + restDuration + "): program settings changed.");
 
-        sendCommand(LOAD_PROGRAM_COMMAND, new byte[]{programCode, 0, feelCode, stimDuration, restDuration}, true);
+        //test if returns true
+        if (sendCommand(LOAD_PROGRAM_COMMAND, new byte[]{programCode, 0, feelCode, stimDuration, restDuration}, true) && this.startProgram()) {
+            intensities = new byte[]{0, 0, 0, 0, 0, 0, 0, 0};
 
-        intensities = new byte[]{0, 0, 0, 0, 0, 0, 0, 0};
+            this.program = programCode;
+            this.feel = feelCode;
+            this.stimduration = stimDuration;
+            this.restduration = restDuration;
+            return true;
+        }
 
-        this.program = programCode;
-        this.feel = feelCode;
-        this.stimduration = stimDuration;
-        this.restduration = restDuration;
-
-        return this.startProgram();
+        return false;
     }
 
     @RpcFunction
@@ -168,42 +172,42 @@ public class VisionBodyController extends VisionBodyConnection implements Contro
         return sendCommand(START_PROGRAM_COMMAND, EMPTY_ARRAY, true);
     }
 
-    public boolean stopProgram() {
+    public synchronized boolean stopProgram() {
         getLogger().println("stopProgram(): stopping program.");
         return sendCommand(STOP_PROGRAM_COMMAND, EMPTY_ARRAY, true);
     }
 
-    public boolean getBatteryLevel() {
+    public synchronized boolean getBatteryLevel() {
         getLogger().println("getBatteryLevel(): requesting battery level.");
         return sendCommand(GET_BATTERY_LEVEL_COMMAND, EMPTY_ARRAY, false);
     }
 
-    public boolean getFirmwareVersion() {
+    public synchronized boolean getFirmwareVersion() {
         getLogger().println("getFirmwareVersion(): requesting firmware version.");
         return sendCommand(GET_FIRMWARE_VERSION_COMMAND, EMPTY_ARRAY, false);
     }
 
-    public boolean getIntensity() {
+    public synchronized boolean getIntensity() {
         getLogger().println("getIntensity(): requesting intensities.");
         return sendCommand(GET_INTENSITY_COMMAND, EMPTY_ARRAY, false);
     }
 
-    public boolean identify() {
+    public synchronized boolean identify() {
         getLogger().println("identify(): requesting identify.");
         return sendCommand(IDENTIFY_COMMAND, EMPTY_ARRAY, true);
     }
 
-    public boolean synchronize() {
+    public synchronized boolean synchronize() {
         getLogger().println("synchronize(): synchronizing.");
         return sendCommand(SYNCHRONIZE_COMMAND, EMPTY_ARRAY, true);
     }
 
-    public boolean login() {
+    public synchronized boolean login() {
         getLogger().println("login(): requesting key.");
         return sendCommand(LOGIN_COMMAND, EMPTY_ARRAY, false);
     }
 
-    public boolean resetDevice() {
+    public synchronized boolean resetDevice() {
         getLogger().println("resetDevice(): resetting.");
         return sendCommand(Byte.MAX_VALUE, EMPTY_ARRAY, false);
     }
@@ -288,7 +292,7 @@ public class VisionBodyController extends VisionBodyConnection implements Contro
                     return;
                 }
 
-                this.intensities = response;
+                // this.intensities = response;
                 break;
             case LOGIN_COMMAND:
                 if (response.length != 32) {

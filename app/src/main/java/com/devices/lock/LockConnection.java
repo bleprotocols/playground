@@ -14,7 +14,7 @@ public abstract class LockConnection extends GattDeviceConnection {
         this.setServiceUUID(RX_SERVICE_UUID)
                 .setTxUUID(TX_CHAR_UUID)
                 .setRxUUID(RX_CHAR_UUID)
-                .setConnectionTimeout(300)
+                .setConnectionTimeout(3000)
                 .setTxRxTimeout(500)
                 .setAutoReconnect(false);
     }

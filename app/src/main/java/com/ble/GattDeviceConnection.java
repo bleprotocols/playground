@@ -213,14 +213,19 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback impleme
             return false;
         }
 
-        if (null == bleGatt) {
-            bleGatt = device.connectGatt(context, autoReconnect, this);
 
-            if (null == bleGatt) {
+        if(null != bleGatt ){
+            bleGatt.close();
+        }
+
+
+        bleGatt = device.connectGatt(context, autoReconnect, this);
+
+        if (null == bleGatt) {
                 getLogger().println("Can't connect to " + device.getName());
                 isConnecting.set(false);
                 return false;
-            }
+
         } else {
             if (!bleGatt.connect()) {
                 isConnecting.set(false);
@@ -228,7 +233,9 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback impleme
             }
         }
 
-        return connectReturnValue.await(BLUETOOTH_TIMEOUT) == 0;
+        int ret = connectReturnValue.await(connectionTimeout);
+        isConnecting.set(false);
+        return ret == 0;
     }
 
 
@@ -264,12 +271,12 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback impleme
 
         if (null == gattService) {
             actionsOnEvents.submit(this::doDiscoverServices);
-            if (0 != 2) {
-                return false;
-            }
 
             gattService = bleGatt.getService(serviceUIID);
+
             if (null == gattService) {
+                subscribeRxReturnValue.doReturn(-1);
+isSubscribingToRXChannel.set(false);
                 return false;
             }
         }
@@ -277,6 +284,7 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback impleme
         BluetoothGattCharacteristic channel = gattService.getCharacteristic(rxUUID);
 
         if (null == channel) {
+            subscribeRxReturnValue.doReturn(-1);
             isSubscribingToRXChannel.set(false);
             return false;
         }
@@ -286,7 +294,9 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback impleme
         //subscribe to client characteristic notifications
         BluetoothGattDescriptor descriptor = channel.getDescriptor(CCCD);
 
+
         if (null == descriptor) {
+            subscribeRxReturnValue.doReturn(0);
             isSubscribingToRXChannel.set(false);
             return true;
         }
@@ -301,8 +311,11 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback impleme
         connectReturnValue.reset();
         isSubscribingToRXChannel.set(false);
         subscribeRxReturnValue.reset();
+        isDiscoveringServices.set(false);
+        discoverServicesReturnValue.reset();
 
-        if (null != bleGatt) {
+
+       if (null != bleGatt) {
             bleGatt.close();
         }
     }
@@ -345,28 +358,33 @@ public abstract class GattDeviceConnection extends BluetoothGattCallback impleme
             subscribeRxReturnValue.reset();
             isConnecting.set(false);
             connectReturnValue.doReturn(0);
-
-            actionsOnEvents.submit(this::doDiscoverServices);
             callbacksOnEvents.submit(wrap(this::onConnect));
+
+            this.doDiscoverServices();
         } else {
             isConnecting.set(false);
             connectReturnValue.reset();
             isSubscribingToRXChannel.set(false);
             subscribeRxReturnValue.reset();
+            isDiscoveringServices.set(false);
+            discoverServicesReturnValue.reset();
 
             callbacksOnEvents.submit(wrap(this::onDisconnect));
         }
     }
 
+    protected byte[] read(int length) {
+        return read(length,txRxTimeout);
+    }
 
     //R/W operations. These are the functions that do the actual communication.
-    protected byte[] read(int length) {
+    protected byte[] read(int length, long timeout) {
         if (!setSubscribeToRxChannel()) {
             return EMPTY_ARRAY;
         }
 
         synchronized (rxLock) {
-            if (doUntilTrue(rxStream, x -> x.size() >= length, txRxTimeout)) {
+            if (doUntilTrue(rxStream, x -> x.size() >= length, timeout)) {
                 return rxStream.pop(length);
             }
 
